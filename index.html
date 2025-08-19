@@ -18,6 +18,15 @@
             <div class="row" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
                 <button id="importBtn">Start Sorting</button>
                 <input type="file" id="fileInput" accept=".txt,.csv">
+                <label style="display:flex;align-items:center;gap:8px;color:#9aa3c7;margin-left:8px">CSV delimiter:
+                    <select id="csvDelimiterSelect" style="background:#07080c;color:#e6e9ef;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04)">
+                        <option value="auto">auto</option>
+                        <option value=",">comma (,)</option>
+                        <option value=";">semicolon (;)</option>
+                        <option value="\t">tab</option>
+                        <option value="|">pipe (|)</option>
+                    </select>
+                </label>
                 <input id="rawUrlInput" type="text" placeholder="Paste raw file URL (raw pastebin/raw github)" style="width:320px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#07080c;color:#e6e9ef;margin-left:8px" />
                 <button id="loadUrlBtn" style="margin-left:6px">Load from URL</button>
                 <label style="display:flex;align-items:center;gap:6px;color:#9aa3c7;margin-left:8px">Auto-start:
@@ -82,6 +91,7 @@
         <footer style="text-align:center;color:#7a7aa8;margin-top:18px;font-size:0.95em">Trust your text sorting skills.</footer>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

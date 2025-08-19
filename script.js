@@ -218,23 +218,40 @@ fileInput.onchange = (e) => {
     const reader = new FileReader();
     reader.onload = function(evt) {
         const txt = evt.target.result;
-        // if csv, try to parse 'name' header
-        if (file.name.toLowerCase().endsWith('.csv')) {
-            const rows = parseCSV(txt);
-            if (rows.length > 0) {
-                const header = rows[0].map(h=>h.trim().toLowerCase());
-                const nameIdx = header.indexOf('name');
-                if (nameIdx !== -1) {
-                    const extracted = [];
-                    for (let i=1;i<rows.length;i++) {
-                        const v = rows[i][nameIdx];
-                        if (v && v.trim()) extracted.push(v.trim());
-                    }
+        // if csv, try to parse 'name' header using PapaParse; handle headerless CSVs
+        if (file.name.toLowerCase().endsWith('.csv') || file.type.includes('csv')) {
+            const delim = document.getElementById('csvDelimiterSelect')?.value || 'auto';
+            const papaCfg = { header: true, skipEmptyLines: true };
+            if (delim !== 'auto') papaCfg.delimiter = delim;
+            const parsed = Papa.parse(txt, papaCfg);
+            // If header mode found a 'name' column, use it
+            if (parsed && parsed.data && parsed.data.length) {
+                const headerKeys = Object.keys(parsed.data[0] || {}).map(h=>h.trim().toLowerCase());
+                const nameKey = headerKeys.find(k => k === 'name');
+                if (nameKey) {
+                    const extracted = parsed.data.map(r => r[nameKey]).filter(Boolean).map(s=>s.trim());
                     if (extracted.length) {
                         inputText.value = extracted.join('\n');
                         importBtn.click();
                         return;
                     }
+                }
+            }
+            // No name header — try headerless parsing and extract values
+            const parsedNoHeader = Papa.parse(txt, { header: false, skipEmptyLines: true, delimiter: (document.getElementById('csvDelimiterSelect')?.value||'auto') });
+            if (parsedNoHeader && parsedNoHeader.data && parsedNoHeader.data.length) {
+                // If single row with many columns, treat that row as items
+                let extracted = [];
+                if (parsedNoHeader.data.length === 1 && parsedNoHeader.data[0].length > 1) {
+                    extracted = parsedNoHeader.data[0].map(c => (c||'').toString().trim()).filter(Boolean);
+                } else {
+                    // Flatten all cells into a single list
+                    extracted = parsedNoHeader.data.flat().map(c => (c||'').toString().trim()).filter(Boolean);
+                }
+                if (extracted.length) {
+                    inputText.value = extracted.join('\n');
+                    importBtn.click();
+                    return;
                 }
             }
         }
@@ -254,15 +271,94 @@ loadUrlBtn.onclick = async () => {
     const url = (rawUrlInput.value || '').trim();
     if (!url) { alert('Please enter a URL'); return; }
     try {
-        const res = await fetch(url);
+        const fetchUrl = convertToRawUrl(url);
+        const res = await fetch(fetchUrl);
         if (!res.ok) throw new Error('Fetch failed: '+res.status);
         const txt = await res.text();
+        // Decide if this is CSV: by URL extension, content-type header, or content heuristic
+        const delimSel = document.getElementById('csvDelimiterSelect')?.value || 'auto';
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        const urlLower = url.toLowerCase();
+        let isCsv = false;
+        if (urlLower.endsWith('.csv')) isCsv = true;
+        if (contentType.includes('csv')) isCsv = true;
+        // basic heuristic: header line contains common delimiters
+        if (!isCsv) {
+            const firstLine = txt.split(/\r?\n/)[0] || '';
+            if (firstLine.includes(',') || firstLine.includes(';') || firstLine.includes('\t') || firstLine.includes('|')) isCsv = true;
+        }
+        if (isCsv) {
+            const delim = document.getElementById('csvDelimiterSelect')?.value || 'auto';
+            const papaCfg = { header: true, skipEmptyLines: true };
+            if (delim !== 'auto') papaCfg.delimiter = delim;
+            const parsed = Papa.parse(txt, papaCfg);
+            // If header mode found a 'name' column, use it
+            if (parsed && parsed.data && parsed.data.length) {
+                const headerKeys = Object.keys(parsed.data[0] || {}).map(h=>h.trim().toLowerCase());
+                const nameKey = headerKeys.find(k => k === 'name');
+                if (nameKey) {
+                    const extracted = parsed.data.map(r => r[nameKey]).filter(Boolean).map(s=>s.trim());
+                    if (extracted.length) {
+                        inputText.value = extracted.join('\n');
+                        if (autoStartUrl.checked) importBtn.click();
+                        return;
+                    }
+                }
+            }
+            // No name header — try headerless parsing and extract values
+            const parsedNoHeader = Papa.parse(txt, { header: false, skipEmptyLines: true, delimiter: (document.getElementById('csvDelimiterSelect')?.value||'auto') });
+            if (parsedNoHeader && parsedNoHeader.data && parsedNoHeader.data.length) {
+                let extracted = [];
+                if (parsedNoHeader.data.length === 1 && parsedNoHeader.data[0].length > 1) {
+                    extracted = parsedNoHeader.data[0].map(c => (c||'').toString().trim()).filter(Boolean);
+                } else {
+                    extracted = parsedNoHeader.data.flat().map(c => (c||'').toString().trim()).filter(Boolean);
+                }
+                if (extracted.length) {
+                    inputText.value = extracted.join('\n');
+                    if (autoStartUrl.checked) importBtn.click();
+                    return;
+                }
+            }
+        }
+        // fallback: treat as plain text
         inputText.value = txt;
         if (autoStartUrl.checked) importBtn.click();
     } catch (err) {
         alert('Failed to load URL: '+err.message);
     }
 };
+
+function convertToRawUrl(url) {
+    try {
+        const u = new URL(url);
+        // GitHub blob URL -> raw.githubusercontent
+        if (u.hostname === 'github.com') {
+            // path: /user/repo/blob/branch/path
+            const parts = u.pathname.split('/').filter(Boolean);
+            const blobIndex = parts.indexOf('blob');
+            if (blobIndex > 0) {
+                const user = parts[0];
+                const repo = parts[1];
+                const branch = parts[blobIndex+1];
+                const pathParts = parts.slice(blobIndex+2);
+                return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${pathParts.join('/')}`;
+            }
+        }
+        // gist.github.com -> append /raw if missing
+        if (u.hostname === 'gist.github.com') {
+            if (!u.pathname.endsWith('/raw')) return url.replace(/\/?$/, '/raw');
+        }
+        // pastebin.com -> use pastebin raw domain
+        if (u.hostname === 'pastebin.com') {
+            const id = u.pathname.split('/').pop();
+            return `https://pastebin.com/raw/${id}`;
+        }
+        return url;
+    } catch (e) {
+        return url;
+    }
+}
 
 copySettingsBtn.onclick = () => {
     const modeVal = document.getElementById('modeSelect')?.value || 'pairwise';
@@ -271,6 +367,11 @@ copySettingsBtn.onclick = () => {
     const params = new URLSearchParams();
     params.set('mode', modeVal);
     params.set('k', kVal);
+    // include csv delimiter and autostart preference
+    const delimVal = document.getElementById('csvDelimiterSelect')?.value || 'auto';
+    params.set('delim', delimVal);
+    const autoStartVal = document.getElementById('autoStartUrl')?.checked ? '1' : '0';
+    params.set('autostart', autoStartVal);
     if (urlVal) params.set('raw', urlVal);
     const link = location.origin + location.pathname + '?' + params.toString();
     navigator.clipboard.writeText(link).then(()=>{
@@ -283,38 +384,21 @@ window.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(location.search);
     const m = params.get('mode'); if (m) document.getElementById('modeSelect').value = m;
     const kv = params.get('k'); if (kv) document.getElementById('kInput').value = kv;
-    const raw = params.get('raw'); if (raw) { rawUrlInput.value = raw; /* don't auto-fetch */ }
+    const raw = params.get('raw'); if (raw) { rawUrlInput.value = raw; }
+    const delim = params.get('delim'); if (delim) document.getElementById('csvDelimiterSelect').value = delim;
+    const as = params.get('autostart'); if (as === '1') {
+        document.getElementById('autoStartUrl').checked = true;
+        // if raw URL provided, auto-load it
+        if (raw) {
+            // trigger the same load logic
+            // small timeout to ensure other handlers are ready
+            setTimeout(() => { loadUrlBtn.click(); }, 50);
+        }
+    }
 });
 
 // Minimal CSV parser that handles quoted fields and commas
-function parseCSV(text) {
-    const rows = [];
-    let cur = '';
-    let row = [];
-    let inQuotes = false;
-    for (let i=0;i<text.length;i++) {
-        const ch = text[i];
-        if (ch === '"') {
-            if (inQuotes && text[i+1] === '"') {
-                cur += '"'; i++; // escaped quote
-            } else {
-                inQuotes = !inQuotes;
-            }
-        } else if (ch === ',' && !inQuotes) {
-            row.push(cur); cur = '';
-        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
-            // handle CRLF
-            if (ch === '\r' && text[i+1] === '\n') { i++; }
-            row.push(cur); cur = '';
-            rows.push(row); row = [];
-        } else {
-            cur += ch;
-        }
-    }
-    // push last
-    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
-    return rows;
-}
+// CSV parsing now uses PapaParse (included in index.html)
 
 // modal elements
 const largeModal = document.getElementById('largeDatasetModal');
