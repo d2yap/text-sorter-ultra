@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Sorter</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Text Sorter</h1>
+        </header>
+
+        <section id="importSection">
+            <label for="inputText" class="sr-only">Input items</label>
+            <textarea id="inputText" placeholder="Paste your text here (one item per line)"></textarea>
+            <div class="row" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                <button id="importBtn">Start Sorting</button>
+                <input type="file" id="fileInput" accept=".txt,.csv">
+                <input id="rawUrlInput" type="text" placeholder="Paste raw file URL (raw pastebin/raw github)" style="width:320px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#07080c;color:#e6e9ef;margin-left:8px" />
+                <button id="loadUrlBtn" style="margin-left:6px">Load from URL</button>
+                <label style="display:flex;align-items:center;gap:6px;color:#9aa3c7;margin-left:8px">Auto-start:
+                    <input id="autoStartUrl" type="checkbox" />
+                </label>
+                <button id="copySettingsBtn" style="margin-left:8px">Copy settings link</button>
+                <label style="display:flex;align-items:center;gap:8px;margin-left:8px;color:#9aa3c7">Mode:
+                    <select id="modeSelect">
+                        <option value="pairwise">Pairwise (2)</option>
+                        <option value="bestofk">Best of k (choose best among k)</option>
+                        <option value="pickthenk">Pick favorites → Rank (sample 100)</option>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;color:#9aa3c7">k:
+                    <input id="kInput" type="number" min="2" max="20" value="3" style="width:64px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#07080c;color:#e6e9ef" />
+                </label>
+                
+                <div style="margin-left:auto;color:#9aa3c7;font-weight:600;">Items will be compared using the selected mode</div>
+            </div>
+        </section>
+
+        <!-- Large dataset modal -->
+        <div id="largeDatasetModal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <h3>Large dataset detected</h3>
+                <p id="modalMsg">Your list has <strong id="modalCount">0</strong> items — this may take a long time to compare. Choose an option:</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                    <button id="modalSample500">Sample 500</button>
+                    <button id="modalSample1000">Sample 1000</button>
+                    <label style="display:flex;align-items:center;gap:8px;color:#9aa3c7">Custom:
+                        <input id="modalCustomSize" type="number" min="10" max="100000" value="500" style="width:90px;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:#07080c;color:#e6e9ef" />
+                    </label>
+                    <button id="modalSampleCustom">Use custom</button>
+                    <div style="flex:1"></div>
+                    <button id="modalProceedAll" style="background:#444;color:#fff">Proceed with all</button>
+                    <button id="modalCancel" style="background:transparent;border:1px solid rgba(255,255,255,0.06);">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <section id="compareSection" style="display:none;">
+            <h2 class="center">Which do you prefer?</h2>
+            <div id="choicesContainer" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:18px 0"></div>
+            <div style="display:flex;gap:8px;justify-content:center;">
+                <button id="pickDoneBtn" style="display:none;">Sort selected (k=20)</button>
+            </div>
+            <div id="progress" class="center"></div>
+        </section>
+
+        <section id="resultSection" style="display:none;">
+            <div class="result-card">
+                <h2>Sorted Results</h2>
+                <textarea id="outputText" readonly></textarea>
+                <div id="rankedResults"></div>
+                <div style="display:flex;gap:12px;margin-top:12px;align-items:center;">
+                    <button id="restartBtn">Restart</button>
+                    <button id="exportImageBtn">Export as image</button>
+                </div>
+            </div>
+        </section>
+
+        <footer style="text-align:center;color:#7a7aa8;margin-top:18px;font-size:0.95em">Trust your text sorting skills.</footer>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
